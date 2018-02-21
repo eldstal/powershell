@@ -1,36 +1,36 @@
 #
 # Given one or more visio documents,
-# Crops them with 0 margin and exports as PDF.
+# Crops each page with 0 margin and exports as PDF.
 # The original documents are left unaltered, PDFs are overwritten.
 #
 
 Param (
-  [parameter(ValueFromPipeline=$true)][string[]] $InputPaths = "*.vsdx"
+  [parameter(ValueFromPipeline=$true)][string[]] $InputPaths = "*.vsdx",
+  [parameter(Mandatory=$false)][Switch] $Visible = $false
 )
 
 
-function autocrop {
+function zero_margin {
     param( $document )
 
     $document.TopMargin("mm") = 0
     $document.BottomMargin("mm") = 0
     $document.LeftMargin("mm") = 0
-    $document.RightMargin("mm") = 0
-
-    Foreach ($page in $document.Pages) {
-        $page.ResizeToFitContents()
-    }    
+    $document.RightMargin("mm") = 0  
     
 }
 
 function export_pdf {
     param ($document,
+           $page_number,
            [string] $outfile )
            
-    $document.ExportAsFixedFormat(1, # PDF
+    $document.ExportAsFixedFormat(1, # PDF format
                                   $outfile,
                                   1, # Print quality
-                                  0  # All pages
+                                  1, # Print a page range, rather than all pages
+                                  $page_number, # Starting page
+                                  $page_number  # Ending page
                                  )
     
 
@@ -39,15 +39,27 @@ function export_pdf {
 function crop_and_export {
     param ( $visio,
             [string] $infile,
-            [string] $outfile )
-    echo "Converting $infile to $outfile"
+            [string] $outdir )
+    echo "Converting $infile and saving figures to $outdir"
+    
+    # Open the source file
     $document = $visio.Documents.Add($infile)
     
-    autocrop $document
-    export_pdf $document $outfile
+    zero_margin $document
+    
+    Foreach ($page in $document.Pages) {
+    
+        $filename = $page.Name -replace " ","_"
+        $filename = $filename + ".pdf"
+        $outfile = Join-Path -Path $outdir -ChildPath $filename
+    
+        $page.ResizeToFitContents()
+        echo "  $outfile"
+        export_pdf $document $page.Index $outfile
+    }    
 
     # Automatically respond "No" instead of showing the "Save" dialog
-    # Set to 6 for "Yes"
+    # Set AlertResponse to 6 for "Yes"
     $visio.AlertResponse = 7;
     $document.Close()
     $visio.AlertResponse = 0;
@@ -62,16 +74,20 @@ Foreach( $path in $InputPaths) {
 }
 
 
+$class = "Visio.InvisibleApp"
+if ($Visible) {
+    $class = "Visio.Application"
+}
 
-$visio = New-Object -ComObject Visio.InvisibleApp
-#$visio = New-Object -ComObject Visio.Application
+# Launch a visio instance that we can control
+$visio = New-Object -ComObject $class
 
 
 ForEach( $infile in $InputFiles ) {
     $outfile = $infile -replace "\..*$",""
-    $outfile = $outfile + ".pdf"
+    $outdir = Split-Path -Path $infile -Parent
     
-    crop_and_export $visio $infile $outfile
+    crop_and_export $visio $infile $outdir
 
 }
 

@@ -11,4 +11,5 @@ to allow locally created scripts to execute.
 
 ## visio2pdf.ps1
 Parameters: one or more visio documents (default: `*.vsdx`)
-Loads each document, crops page down to fit contents and exports to PDF in print quality.
+Loads each document, crops each page down to fit contents and exports to PDF in print quality.
+PDF filenames are taken from page names in each visio document.
