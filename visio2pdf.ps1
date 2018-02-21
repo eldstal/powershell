@@ -42,6 +42,8 @@ function crop_and_export {
             [string] $outdir )
     echo "Converting $infile and saving figures to $outdir"
     
+    $source_modified = (Get-Item $infile).LastWriteTime
+    
     # Open the source file
     $document = $visio.Documents.Add($infile)
     
@@ -53,9 +55,16 @@ function crop_and_export {
         $filename = $filename + ".pdf"
         $outfile = Join-Path -Path $outdir -ChildPath $filename
     
-        $page.ResizeToFitContents()
-        echo "  $outfile"
-        export_pdf $document $page.Index $outfile
+        $dest_exists = Test-Path $outfile
+        if ($dest_exists) {
+            $dest_modified = (Get-Item $outfile).LastWriteTime
+        }
+    
+        if (!($dest_exists) -or ($dest_modified -lt $source_modified)) {
+            $page.ResizeToFitContents()
+            echo "  $outfile"
+            export_pdf $document $page.Index $outfile
+        }
     }    
 
     # Automatically respond "No" instead of showing the "Save" dialog
